@@ -5,21 +5,20 @@ const appInfo = require('../package.json')
 const program = require('commander')
 const color = require('chalk')
 const fetch = require('node-fetch');
-const jquery = require('jquery')
-const env = require('jsdom').env
 const rmdir = require('rimraf')
+const cheerio = require('cheerio')
 
 const utils = require('../lib/utils');
 const display = require('../lib/display');
 
 program
 	.version(appInfo.version)
-	// .option('-g, --get <num>', '下载几张图片 小于20')
+	.option('-g, --get <num>', '下载几张图片 小于20')
 	.option('-c, --clear', ' 清空下载图片')
 
 program.parse(process.argv)
 
-//////////////////// 清空图片
+//////////////////// 清空图片 ////////////////////
 
 if (program.clear) {
 	clearAll()
@@ -38,16 +37,16 @@ function clearAll() {
 	});
 }
 
-///////////////////// 下载展示
+///////////////////// 下载并展示 /////////////////////
 
 var getNum = program.get || 20
 
-if (!program.clear) { getBaiduImage(getNum) }
+if (!program.clear) { getGirlsImage(getNum) }
 
-function getBaiduImage(keyword, num) {
+function getGirlsImage(keyword, num) {
 
-	var cid = getRandomInt(0, 5)
-		page = getRandomInt(0, 1000)
+	var cid = utils.getRandomInt(0, 5)
+		page = utils.getRandomInt(0, 1000)
 	var url = `http://www.dbmeinv.com/dbgroup/show.htm?cid=${cid}&pager_offset=${page}`
 
 	fetch(url)
@@ -58,32 +57,21 @@ function getBaiduImage(keyword, num) {
 		});
 };
 
-function getRandomInt (fromNum, toNum) {
-	var ttt = toNum - fromNum;
-	var randomNumber = Math.random() * ttt
-	return fromNum + Math.floor(randomNumber)
-}
-
 function parseHtmlPage (html) {
 
-	env(html, (errors, window) => {
-		if (errors) {
-			console.log(errors)
-		}
+	var $ = cheerio.load(html)
 
-		var dom = jquery(window)('img')
-		var girls = []
+	var dom = $('img')
+	var girls = []
 
-		for (var i = 0; i < dom.length; i++) {
-			var url = dom[i]['src']
-			if (url) { girls.push(url) }
-		}
-
-		if (dom.length < 5) {
-			getBaiduImage(getNum)
-		} else {
-			display.images(girls, Math.min(getNum, dom.length))
-		}
+	dom.each((i, elem) => {
+		var url = $(elem).attr('src')
+		if (url) { girls.push(url) }
 	})
 
+	if (dom.length < 5) {
+			getGirlsImage(getNum)
+	} else {
+		display.images(girls, Math.min(getNum, dom.length))
+	}
 }

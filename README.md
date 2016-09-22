@@ -9,7 +9,7 @@
 使用 NPM 安装
 
 ```
-$ npm install qytools
+$ npm install -g qytools
 ```
 
 ## girls
@@ -34,6 +34,6 @@ $ girls -c
 
 * 使用Fetch 进行 http 请求
 * 随机数的生成
-* node-jqurey 使用 DOM 内容搜索
+* 使用 cheerio 进行 DOM 内容解析
 * wget 工具下载
 * 文件/目录的保存和删除
