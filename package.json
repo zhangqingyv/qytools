@@ -1,9 +1,10 @@
 {
   "name": "qytools",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Some tools written by zhangqingyu when learning Node.js",
   "bin": {
-    "girls": "./bin/girls.js"
+    "girls": "./bin/girls.js",
+    "cl1024": "./bin/cl1024.js"
   },
   "main": "index.js",
   "scripts": {
