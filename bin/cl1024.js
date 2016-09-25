@@ -31,50 +31,62 @@ program
 
 program.parse(process.argv)
 
-get1024url()
-	.then((url1024) => {
-		if (program.open) {
-			utils.open(url1024)
+startMain()
+
+//crawPage ('http://cl.gfhyu.com/htm_data/7/1301/842247.html')	//测试验证码抓取
+
+/// 开始主流程
+function startMain() {
+	get1024url()
+		.then((url1024) => {
+			if (program.open) {
+				utils.open(url1024)
+				process.exit()
+			}
+
+			ROOT_URL = path.parse(url1024).dir
+			var search = '&search=today'
+			START_URL = url.resolve(ROOT_URL, `thread0806.php?fid=${FID.technique}${search}`)
+			return crawerList(START_URL)
+		})
+		.then((briefs) => {
+			var today = utils.getToday()
+			var todayBriefs = briefs
+				.filter((item) => {
+					//TODO 除此功能还要 加上黑名单功能
+					return today == item.create
+				})
+			console.log(todayBriefs)
+			if (program.today) {
+				process.exit()
+			}
+			return crawPage(todayBriefs[0].url)
+		})
+		.then((fakes) => {
+			if (program.code) {
+				process.exit()
+			}
+
+			if (!fakes.length) {
+				startMain()
+				return;
+			}
+			//TODO
+		})
+		.catch((error) => {
+			console.log(error)
+			ROOT_URL = ''
+		})
+
+	/*
+	registe('hehe123qwe', 'hehe123qwe', '1390557546%40qq.com', 'd68f028abe9e5ef3', (success) => {
+		if (success) {
+
 			process.exit()
 		}
-
-		ROOT_URL = path.parse(url1024).dir
-		var search = '&search=today'
-		START_URL = url.resolve(ROOT_URL, `thread0806.php?fid=${FID.technique}${search}`)
-		return crawerList(START_URL)
 	})
-	.then((briefs) => {
-		var today = getToday()
-		var todayBriefs = briefs
-			.filter((item) => {
-				//TODO 除此功能还要 加上黑名单功能
-				return today == item.create
-			})
-		console.log(todayBriefs)
-		if (program.today) {
-			process.exit()
-		}
-		return crawPage(todayBriefs[0].url)
-	})
-	.then((fakes) => {
-		if (program.code) {
-			process.exit()
-		}
-		//TODO
-	})
-	.catch((error) => {
-		console.log(error)
-		ROOT_URL = ''
-	})
-
-/*
-registe('hehe123qwe', 'hehe123qwe', '1390557546%40qq.com', 'd68f028abe9e5ef3', (success) => {
-	if (success) {
-
-		process.exit()
-	}
-})
- */
+	 */
+}
 
 //////////////////////////////////// 从发布页获取地址 ////////////////////////////////////
 
@@ -82,7 +94,7 @@ function get1024url() {
 	return new Promise((resolve, reject) => {
 		if (ROOT_URL) {
 			console.log(`****** 可用地址：${ROOT_URL} ******`)
-			resolve(ROOT_URL)
+			resolve(url.resolve(ROOT_URL, 'index.php'))
 			return
 		}
 		console.log('****** 正在从发布页获取可用地址 ******')
@@ -101,7 +113,7 @@ function get1024url() {
 
 function crawerList(listUrl) {
 	return new Promise((resolve, reject) => {
-		console.log('****** 正在爬取列表页 ******')
+		console.log(`****** 正在爬取列表页：${listUrl} ******`)
 		fetch(listUrl)
 			.then((res) => {
 				return res.text()
@@ -134,7 +146,8 @@ function crawerList(listUrl) {
 function crawPage(detailUrl) {
 	return new Promise((resolve, reject) => {
 		console.log(`****** 正在爬取页面 ${detailUrl} ******`)
-		var fakeRegExp = /(\W)([0-9a-f])([0-9a-f\u4e00-\u9fa5\\*]{14})([0-9a-f])(\W)/g
+			// var fakeRegExp = /(\W|\u8bf7|\u7801|^)([0-9a-f\u4e00-\u9fa5\\*\@\￥\$]{16})(\W|[\u4e00-\u9fa5])/g // 貌似不太可能有中文
+		var fakeRegExp = /(\W|[\u4e00-\u9fa5]|^)([0-9a-f\\*\@\￥\$]{16})(\W|[\u4e00-\u9fa5])/g
 		fetch(detailUrl)
 			.then((res) => {
 				return res.text()
@@ -143,27 +156,40 @@ function crawPage(detailUrl) {
 				reject(error)
 			})
 			.then((body) => {
+				console.log(`****** 正在查找可能的邀请码 ******`)
 				var fakes = []
-
 				var $ = cheerio.load(body)
 				$(body).text()
 					.split('\n')
-					.filter((item) => {
-						return item.length >= 16
+					.filter((line) => {
+						return line.length >= 16
 					})
 					.forEach((item) => {
-						fakes = fakes.concat(item.match(fakeRegExp))
+						var result = item.match(fakeRegExp)
+						if (!result) {
+							return
+						}
+						// console.log('----------------------------')
+						// console.log(item + '\n' +result)
+						fakes = fakes
+							.concat(result)
+							.filter((str) => {
+								if (!str) {
+									return false
+								}
+								return str.includes('a') || str.includes('b') || str.includes('c') || str.includes('d') || str.includes('e') || str.includes('f')
+							})
+							.map((str) => {
+								if (str.length < 18) {
+									str.substring(0, 16)
+								}
+								return str.substring(1, 17)
+							})
 					})
 
-				fakes = fakes
-					.filter((item) => {
-						return item
-					})
-					.map((itm) => {
-						return itm.substring(1, 17)
-					})
 				if (fakes.length) {
-					console.log(`找到${fakes.length}个伪码, ${fakes}`)
+					console.log(`****** 找到${fakes.length}个可能的验证码 ******`)
+					console.log(fakes)
 				} else {
 					console.log('****** 什么码都没有找到 ******')
 				}
@@ -208,30 +234,4 @@ function registe(user, pwd, email, code) {
 			})
 	})
 
-}
-
-function getToday() {
-	// 对Date的扩展，将 Date 转化为指定格式的String
-	// 月(M)、日(d)、小时(h)、分(m)、秒(s)、季度(q) 可以用 1-2 个占位符，
-	// 年(y)可以用 1-4 个占位符，毫秒(S)只能用 1 个占位符(是 1-3 位的数字)
-	// 例子：
-	// (new Date()).Format("yyyy-MM-dd hh:mm:ss.S") ==> 2006-07-02 08:09:04.423
-	// (new Date()).Format("yyyy-M-d h:m:s.S")      ==> 2006-7-2 8:9:4.18
-	Date.prototype.Format = function(fmt) { //author: meizz
-		var o = {
-			"M+": this.getMonth() + 1, //月份
-			"d+": this.getDate(), //日
-			"h+": this.getHours(), //小时
-			"m+": this.getMinutes(), //分
-			"s+": this.getSeconds(), //秒
-			"q+": Math.floor((this.getMonth() + 3) / 3), //季度
-			"S": this.getMilliseconds() //毫秒
-		};
-		if (/(y+)/.test(fmt)) fmt = fmt.replace(RegExp.$1, (this.getFullYear() + "").substr(4 - RegExp.$1.length));
-		for (var k in o)
-			if (new RegExp("(" + k + ")").test(fmt)) fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
-		return fmt;
-	}
-
-	return new Date().Format("yyyy-MM-dd");
 }
