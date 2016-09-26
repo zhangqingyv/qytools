@@ -6,13 +6,12 @@ const utils = require('../lib/utils');
 const program = require('commander')
 const fetch = require('node-fetch')
 const cheerio = require('cheerio')
+const fsextra = require('fs-extra');
 
 const path = require('path')
 const url = require('url')
 
 const publishUrl = 'http://www.caoliulala.com/index.php' // 发布页请求
-const PATH_DIR = require('path').join(utils.home(), 'Downloads/cl1024');
-
 var ROOT_URL, // 1024地址， 形式比如： http://cl.comcl.org
 	START_URL
 const FID = {
@@ -31,9 +30,22 @@ program
 
 program.parse(process.argv)
 
+const cl1024FilePath = require('path').join(utils.home(), 'Downloads/cl1024.json');
+var clInfo
+try {
+	clInfo = require(cl1024FilePath)
+} catch (err) {
+  clInfo = {}
+}
+const whiteList = new Set(clInfo.whiteList || [])
+const blackList = new Set(clInfo.blackList || [])
+
+const userName
+
 startMain()
 
-//crawPage ('http://cl.gfhyu.com/htm_data/7/1301/842247.html')	//测试验证码抓取
+//测试验证码抓取
+//crawPage ('http://cl.gfhyu.com/htm_data/7/1301/842247.html')
 
 /// 开始主流程
 function startMain() {
@@ -53,16 +65,33 @@ function startMain() {
 			var today = utils.getToday()
 			var todayBriefs = briefs
 				.filter((item) => {
-					//TODO 除此功能还要 加上黑名单功能
-					return today == item.create
+					return today == item.create && !blackList.has(item.url)
 				})
 			console.log(todayBriefs)
 			if (program.today) {
 				process.exit()
 			}
-			return crawPage(todayBriefs[0].url)
+			todayBriefs.forEach((item) => {
+				whiteList.add(item.url)
+			})
+
+			var pageUrl
+			if (whiteList.size) {
+				pageUrl = Array.from(whiteList).shift()
+				saveClInfoFile()
+			} else {
+				pageUrl = briefs.shift().url
+			}
+			return crawPage(pageUrl)
 		})
 		.then((fakes) => {
+			if (whiteList.size) {
+				var pageUrl = Array.from(whiteList).shift()
+				whiteList.delete(pageUrl)
+				blackList.add(pageUrl)
+				saveClInfoFile()
+			}
+
 			if (program.code) {
 				process.exit()
 			}
@@ -88,12 +117,20 @@ function startMain() {
 	 */
 }
 
+function saveClInfoFile() {
+	clInfo.whiteList = Array.from(whiteList)
+	clInfo.blackList = Array.from(blackList)
+	fsextra.outputJson(cl1024FilePath, clInfo, (err) => {
+		if (err) { console.log(err) }
+	})
+}
+
 //////////////////////////////////// 从发布页获取地址 ////////////////////////////////////
 
 function get1024url() {
 	return new Promise((resolve, reject) => {
 		if (ROOT_URL) {
-			console.log(`****** 可用地址：${ROOT_URL} ******`)
+			console.log(`****** 可用地址：${url.resolve(ROOT_URL, 'index.php')} ******`)
 			resolve(url.resolve(ROOT_URL, 'index.php'))
 			return
 		}
@@ -130,6 +167,7 @@ function crawerList(listUrl) {
 					var brief = {}
 					var a = $('h3', elem).children('a')
 					brief.url = url.resolve(ROOT_URL, $(a).attr('href'))
+					if (!brief.url.includes('htm_data')) { return }
 					brief.title = $(a).text()
 					brief.author = $('a[class=bl]', elem).text()
 					brief.create = $('div[class=f10]', 'td[class="tal y-style"]', elem).text()
