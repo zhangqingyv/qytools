@@ -1,6 +1,6 @@
 {
   "name": "qytools",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Some tools written by zhangqingyu when learning Node.js",
   "bin": {
     "girls": "./bin/girls.js",
