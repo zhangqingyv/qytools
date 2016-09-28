@@ -7,6 +7,8 @@ const program = require('commander')
 const fetch = require('node-fetch')
 const cheerio = require('cheerio')
 const fsextra = require('fs-extra');
+const inquirer = require('inquirer');
+const color = require('chalk')
 
 const path = require('path')
 const url = require('url')
@@ -27,9 +29,8 @@ program
 	.option('-o, --open', '找到可用地址并用默认浏览器打开网址')
 	.option('-t, --today', '查看今日主题')
 	.option('-c, --code', '显示找到的伪码')
-	.option('-s, --setting', '配置注册相关信息')
-
-program.parse(process.argv)
+	.option('-s, --settings', '配置注册相关信息')
+	.parse(process.argv)
 
 const cl1024FilePath = require('path').join(utils.home(), 'Downloads/cl1024.json');
 var clInfo
@@ -43,11 +44,15 @@ const pageBlackList = new Set(clInfo.pageBlackList || [])
 const codeWhiteList = new Set(clInfo.codeWhiteList || [])
 const codeBlackList = new Set(clInfo.codeBlackList || [])
 
-const userName = 'hehe123qwe',
-	userPwd = 'hehe123qwe',
-	userEmail = '1390557546%40qq.com'
+const userName = clInfo.userName,
+	userPwd = clInfo.userPwd,
+	userEmail = clInfo.userEmail
 
-startMain()
+if (program.settings || !userName || !userPwd || !userEmail) {
+	settings()
+} else {
+	startMain()
+}
 
 /// 开始主流程
 function startMain() {
@@ -119,7 +124,7 @@ function startMain() {
 				.forEach((code) => {
 					codeWhiteList.add(code)
 					saveClInfoFile()
-					requests.push(registe(userName, userPwd, userEmail, code))
+					requests.push(registe(userName, userPwd, encodeURIComponent(userEmail), code))
 				})
 			return Promise.all(requests)
 		})
@@ -318,3 +323,65 @@ function registe(user, pwd, email, code) {
 
 //测试验证码抓取
 //crawPage ('http://cl.gfhyu.com/htm_data/7/1301/842247.html')
+
+function settings() {
+	inquirer.prompt(getAskQuestions())
+		.then((answers) => {
+			clInfo.userName = userName = answers.name
+			clInfo.userPwd = userPwd = answers.password
+			clInfo.userEmail = userEmail = answers.email
+			saveClInfoFile()
+			console.log(color.green('设置成功!! 运行 cl1024 可以进行抢码了！'));
+		}, (error) => {
+			console.log(color.red('出错啦....'));
+		})
+}
+
+function getAskQuestions() {
+	var askQuesArr = []
+
+	// 注册用户名
+	if (!userName) {
+		askQuesArr.push({
+			type: 'input',
+			name: 'name',
+			message: '请输入注册用户名，中文格式可能会有问题',
+			validate: function(input) {
+				if (!input) {
+					return '账号不能为空';
+				}
+				return true;
+			}
+		})
+	}
+
+	// 注册用户密码
+	if (!userName) {
+		askQuesArr.push({
+			type: 'input',
+			name: 'password',
+			message: '注册密码',
+			validate: function(input) {
+				if (!input) {
+					return '密码不能为空';
+				}
+				return true;
+			}
+		})
+	}
+	// 注册用户邮箱
+	if (!userName) {
+		askQuesArr.push({
+			type: 'input',
+			name: 'email',
+			message: '注册邮箱,确保格式正确',
+			validate: function(input) {
+				if (!input) {
+					return '邮箱不能为空';
+				}
+				return true;
+			}
+		})
+	}
+	return askQuesArr
+}
