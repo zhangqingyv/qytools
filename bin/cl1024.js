@@ -27,6 +27,7 @@ program
 	.option('-o, --open', '找到可用地址并用默认浏览器打开网址')
 	.option('-t, --today', '查看今日主题')
 	.option('-c, --code', '显示找到的伪码')
+	.option('-s, --setting', '配置注册相关信息')
 
 program.parse(process.argv)
 
@@ -35,17 +36,18 @@ var clInfo
 try {
 	clInfo = require(cl1024FilePath)
 } catch (err) {
-  clInfo = {}
+	clInfo = {}
 }
-const whiteList = new Set(clInfo.whiteList || [])
-const blackList = new Set(clInfo.blackList || [])
+const pageWhiteList = new Set(clInfo.pageWhiteList || [])
+const pageBlackList = new Set(clInfo.pageBlackList || [])
+const codeWhiteList = new Set(clInfo.codeWhiteList || [])
+const codeBlackList = new Set(clInfo.codeBlackList || [])
 
-const userName
+const userName = 'hehe123qwe',
+	userPwd = 'hehe123qwe',
+	userEmail = '1390557546%40qq.com'
 
 startMain()
-
-//测试验证码抓取
-//crawPage ('http://cl.gfhyu.com/htm_data/7/1301/842247.html')
 
 /// 开始主流程
 function startMain() {
@@ -57,27 +59,35 @@ function startMain() {
 			}
 
 			ROOT_URL = path.parse(url1024).dir
-			var search = '&search=today'
-			START_URL = url.resolve(ROOT_URL, `thread0806.php?fid=${FID.technique}${search}`)
+			START_URL = url.resolve(ROOT_URL, `thread0806.php?fid=${FID.technique}`)
+			if (program.today) {
+				START_URL = START_URL + '&search=today'
+			}
 			return crawerList(START_URL)
 		})
 		.then((briefs) => {
-			var today = utils.getToday()
-			var todayBriefs = briefs
-				.filter((item) => {
-					return today == item.create && !blackList.has(item.url)
-				})
-			console.log(todayBriefs)
-			if (program.today) {
+			if (!briefs.length) {
+				console.log('可能进行性 IP 限制访问，请稍后重试....')
 				process.exit()
 			}
-			todayBriefs.forEach((item) => {
-				whiteList.add(item.url)
+
+			if (program.today) {
+				var today = utils.getToday()
+				var todayBriefs = briefs
+					.filter((item) => {
+						return today == item.create && !pageBlackList.has(item.url)
+					})
+				console.log(todayBriefs)
+				process.exit()
+			}
+
+			briefs.forEach((item) => {
+				pageWhiteList.add(item.url)
 			})
 
 			var pageUrl
-			if (whiteList.size) {
-				pageUrl = Array.from(whiteList).shift()
+			if (pageWhiteList.size) {
+				pageUrl = Array.from(pageWhiteList).shift()
 				saveClInfoFile()
 			} else {
 				pageUrl = briefs.shift().url
@@ -85,10 +95,10 @@ function startMain() {
 			return crawPage(pageUrl)
 		})
 		.then((fakes) => {
-			if (whiteList.size) {
-				var pageUrl = Array.from(whiteList).shift()
-				whiteList.delete(pageUrl)
-				blackList.add(pageUrl)
+			if (pageWhiteList.size) {
+				var pageUrl = Array.from(pageWhiteList).shift()
+				pageWhiteList.delete(pageUrl)
+				pageBlackList.add(pageUrl)
 				saveClInfoFile()
 			}
 
@@ -100,28 +110,39 @@ function startMain() {
 				startMain()
 				return;
 			}
-			//TODO
+
+			var requests = []
+			getPosiableCodes(fakes)
+				.filter((code) => {
+					return codeBlackList.has(code)
+				})
+				.forEach((code) => {
+					codeWhiteList.add(code)
+					saveClInfoFile()
+					requests.push(registe(userName, userPwd, userEmail, code))
+				})
+			return Promise.all(requests)
+		})
+		.then((results) => {
+			if (results.indexOf(true)) {
+				console.log('注册成功啦！')
+			}
 		})
 		.catch((error) => {
 			console.log(error)
 			ROOT_URL = ''
 		})
-
-	/*
-	registe('hehe123qwe', 'hehe123qwe', '1390557546%40qq.com', 'd68f028abe9e5ef3', (success) => {
-		if (success) {
-
-			process.exit()
-		}
-	})
-	 */
 }
 
 function saveClInfoFile() {
-	clInfo.whiteList = Array.from(whiteList)
-	clInfo.blackList = Array.from(blackList)
+	clInfo.pageWhiteList = Array.from(pageWhiteList)
+	clInfo.pageBlackList = Array.from(pageBlackList)
+	clInfo.codeWhiteList = Array.from(codeWhiteList)
+	clInfo.codeBlackList = Array.from(codeBlackList)
 	fsextra.outputJson(cl1024FilePath, clInfo, (err) => {
-		if (err) { console.log(err) }
+		if (err) {
+			console.log(err)
+		}
 	})
 }
 
@@ -167,7 +188,9 @@ function crawerList(listUrl) {
 					var brief = {}
 					var a = $('h3', elem).children('a')
 					brief.url = url.resolve(ROOT_URL, $(a).attr('href'))
-					if (!brief.url.includes('htm_data')) { return }
+					if (!brief.url.includes('htm_data')) {
+						return
+					}
 					brief.title = $(a).text()
 					brief.author = $('a[class=bl]', elem).text()
 					brief.create = $('div[class=f10]', 'td[class="tal y-style"]', elem).text()
@@ -180,7 +203,7 @@ function crawerList(listUrl) {
 
 }
 
-/// 爬取页面内容 -> codes
+//////////////////////////////////// 爬取页面内容 -> codes ////////////////////////////////////
 function crawPage(detailUrl) {
 	return new Promise((resolve, reject) => {
 		console.log(`****** 正在爬取页面 ${detailUrl} ******`)
@@ -207,8 +230,7 @@ function crawPage(detailUrl) {
 						if (!result) {
 							return
 						}
-						// console.log('----------------------------')
-						// console.log(item + '\n' +result)
+
 						fakes = fakes
 							.concat(result)
 							.filter((str) => {
@@ -236,11 +258,29 @@ function crawPage(detailUrl) {
 	})
 }
 
-/// 注册
+//////////////////////////////////// 获取需要尝试的所有密码 ////////////////////////////////////
+function getPosiableCodes(fakes) {
+	var posiableCodes = []
+	const codeRegx = /([0-9a-f]{16})/
+	fakes.forEach((fake) => {
+		if (codeRegx.test(fake)) {
+			posiableCodes.push(fake)
+			return
+		}
+		['a', 'b', 'c', 'd', 'e', 'f', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+		.forEach((ch) => {
+			posiableCodes.push(fake.replace(/[^0-9a-f]/g, ch))
+		})
+	})
+	return posiableCodes
+}
+
+//////////////////////////////////// 注册 ////////////////////////////////////
 function registe(user, pwd, email, code) {
 	return new Promise((resolve, reject) => {
 		console.log(`****** 正在利用邀请码：${code} 注册 ******`)
 		var registeUrl = url.resolve(ROOT_URL, 'register.php?')
+
 		fetch(registeUrl, {
 				method: 'POST',
 				body: `regname=${user}&regpwd=${pwd}&regpwdrepeat=${pwd}&regemail=${email}&invcode=${code}&forward=&step=2`,
@@ -264,6 +304,9 @@ function registe(user, pwd, email, code) {
 				var dom = $('tr[class="f_one"]').text()
 				if (dom.includes('錯誤!')) {
 					console.log(`邀請碼錯誤! ： ${code}`)
+					codeWhiteList.delete(code)
+					codeBlackList.add(code)
+					saveClInfoFile()
 					resolve(false)
 				} else {
 					console.log(`邀請碼成功？： ${code}`)
@@ -271,5 +314,7 @@ function registe(user, pwd, email, code) {
 				}
 			})
 	})
-
 }
+
+//测试验证码抓取
+//crawPage ('http://cl.gfhyu.com/htm_data/7/1301/842247.html')
