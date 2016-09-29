@@ -24,11 +24,14 @@ const FID = {
 	literature: 20 // 文学
 }
 
+const ERR_FIND_NO_CODE = 'find no codes even fakes',
+	ERR_NO_CORRECT_CODE = 'no code is correct'
+
 program
 	.version(appInfo.version)
 	.option('-o, --open', '找到可用地址并用默认浏览器打开网址')
 	.option('-t, --today', '查看今日主题')
-	.option('-c, --code', '显示找到的伪码')
+	.option('-c, --cookies <cookies>', '设置cookes,IP限制后需要重设 cookies')
 	.option('-s, --settings', '配置注册相关信息')
 	.parse(process.argv)
 
@@ -46,9 +49,12 @@ const codeBlackList = new Set(clInfo.codeBlackList || [])
 
 const userName = clInfo.userName,
 	userPwd = clInfo.userPwd,
-	userEmail = clInfo.userEmail
+	userEmail = clInfo.userEmail,
+	cookies = clInfo.cookies || ''
 
-if (program.settings || !userName || !userPwd || !userEmail) {
+if (program.cookies) {
+	cookiesSetting()
+} else if (program.settings || !userName || !userPwd || !userEmail) {
 	settings()
 } else {
 	startMain()
@@ -67,12 +73,15 @@ function startMain() {
 			START_URL = url.resolve(ROOT_URL, `thread0806.php?fid=${FID.technique}`)
 			if (program.today) {
 				START_URL = START_URL + '&search=today'
+			} else if (pageWhiteList.size) {
+				return Array.from(pageWhiteList).shift()
 			}
 			return crawerList(START_URL)
 		})
 		.then((briefs) => {
+
 			if (!briefs.length) {
-				console.log('可能进行性 IP 限制访问，请稍后重试....')
+				console.log('可能进行性 IP 限制访问，请执行 cl1024 -c 设置 cookies 后重试....')
 				process.exit()
 			}
 
@@ -84,6 +93,10 @@ function startMain() {
 					})
 				console.log(todayBriefs)
 				process.exit()
+			}
+
+			if (typeof briefs == 'string') {
+				return crawPage(briefs)
 			}
 
 			briefs.forEach((item) => {
@@ -107,13 +120,8 @@ function startMain() {
 				saveClInfoFile()
 			}
 
-			if (program.code) {
-				process.exit()
-			}
-
 			if (!fakes.length) {
-				startMain()
-				return;
+				throw new Error(ERR_FIND_NO_CODE)
 			}
 
 			var requests = []
@@ -129,13 +137,21 @@ function startMain() {
 			return Promise.all(requests)
 		})
 		.then((results) => {
-			if (results.indexOf(true)) {
+			if (results && results.indexOf(true) > -1) {
 				console.log('注册成功啦！')
+			} else {
+				throw new Error(ERR_NO_CORRECT_CODE)
 			}
 		})
 		.catch((error) => {
-			console.log(error)
-			ROOT_URL = ''
+			if (error.message == ERR_FIND_NO_CODE
+				|| error.message == ERR_NO_CORRECT_CODE) {
+				console.log(`****** ${error.message} ******`)
+			} else {
+				console.log(error)
+				ROOT_URL = ''
+			}
+			setTimeout(startMain,2000);
 		})
 }
 
@@ -161,7 +177,17 @@ function get1024url() {
 			return
 		}
 		console.log('****** 正在从发布页获取可用地址 ******')
-		fetch(publishUrl)
+		fetch(publishUrl, {
+				headers: {
+					'Cookie': cookies,
+					'DNT': 1,
+					'Accept-Language': 'en-us',
+					'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'Connection': 'keep-alive',
+					'Cache-Control': 'max-age=0'
+				}
+			})
 			.then((res) => {
 				console.log(`****** 获取到可用地址：${res.url} ******`)
 				resolve(res.url)
@@ -177,7 +203,17 @@ function get1024url() {
 function crawerList(listUrl) {
 	return new Promise((resolve, reject) => {
 		console.log(`****** 正在爬取列表页：${listUrl} ******`)
-		fetch(listUrl)
+		fetch(listUrl, {
+				headers: {
+					'Cookie': cookies,
+					'DNT': 1,
+					'Accept-Language': 'en-us',
+					'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'Connection': 'keep-alive',
+					'Cache-Control': 'max-age=0'
+				}
+			})
 			.then((res) => {
 				return res.text()
 			}, (error) => {
@@ -214,7 +250,17 @@ function crawPage(detailUrl) {
 		console.log(`****** 正在爬取页面 ${detailUrl} ******`)
 			// var fakeRegExp = /(\W|\u8bf7|\u7801|^)([0-9a-f\u4e00-\u9fa5\\*\@\￥\$]{16})(\W|[\u4e00-\u9fa5])/g // 貌似不太可能有中文
 		var fakeRegExp = /(\W|[\u4e00-\u9fa5]|^)([0-9a-f\\*\@\￥\$]{16})(\W|[\u4e00-\u9fa5])/g
-		fetch(detailUrl)
+		fetch(detailUrl, {
+				headers: {
+					'Cookie': cookies,
+					'DNT': 1,
+					'Accept-Language': 'en-us',
+					'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'Connection': 'keep-alive',
+					'Cache-Control': 'max-age=0'
+				}
+			})
 			.then((res) => {
 				return res.text()
 			}, (error) => {
@@ -290,7 +336,7 @@ function registe(user, pwd, email, code) {
 				method: 'POST',
 				body: `regname=${user}&regpwd=${pwd}&regpwdrepeat=${pwd}&regemail=${email}&invcode=${code}&forward=&step=2`,
 				headers: {
-					'Cookie': ' __utma=101733331.362123468.1474690364.1474690364.1474690364.1; __utmb=101733331.1.10.1474690364; __utmc=101733331; __utmt=1; __utmz=101733331.1474690364.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); 227c9_lastfid=0; 227c9_lastvisit=0%091474690360%09%2Fregister.php%3F; __cfduid=d6d2ccd60f08656c453bf9e1eae7b48e91474690360',
+					'Cookie': cookies,
 					'DNT': 1,
 					'Accept-Language': 'en-us',
 					'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -384,4 +430,10 @@ function getAskQuestions() {
 		})
 	}
 	return askQuesArr
+}
+
+function cookiesSetting() {
+	clInfo.cookies = cookies = program.cookies
+	saveClInfoFile()
+	console.log(color.green('cookies设置成功!! 运行 cl1024 可以进行抢码了！'));
 }
