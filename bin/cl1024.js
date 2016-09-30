@@ -89,7 +89,7 @@ function startMain() {
 				var today = utils.getToday()
 				var todayBriefs = briefs
 					.filter((item) => {
-						return today == item.create && !pageBlackList.has(item.url)
+						return today == item.create
 					})
 				console.log(todayBriefs)
 				process.exit()
