@@ -99,9 +99,9 @@ function startMain() {
 				return crawPage(briefs)
 			}
 
-			briefs.forEach((item) => {
-				pageWhiteList.add(item.url)
-			})
+			briefs
+			.filter(item => !pageBlackList.has(item.url))
+			.forEach(item => pageWhiteList.add(item.url))
 
 			var pageUrl
 			if (pageWhiteList.size) {
@@ -127,7 +127,7 @@ function startMain() {
 			var requests = []
 			getPosiableCodes(fakes)
 				.filter((code) => {
-					return codeBlackList.has(code)
+					return !codeBlackList.has(code)
 				})
 				.forEach((code) => {
 					codeWhiteList.add(code)
@@ -192,7 +192,6 @@ function get1024url() {
 				console.log(`****** 获取到可用地址：${res.url} ******`)
 				resolve(res.url)
 			}, (error) => {
-				console.log(error)
 				reject(error)
 			})
 	})
@@ -217,7 +216,6 @@ function crawerList(listUrl) {
 			.then((res) => {
 				return res.text()
 			}, (error) => {
-				console.log(error)
 				reject(error)
 			})
 			.then((body) => {
@@ -264,7 +262,6 @@ function crawPage(detailUrl) {
 			.then((res) => {
 				return res.text()
 			}, (error) => {
-				console.log(error)
 				reject(error)
 			})
 			.then((body) => {
