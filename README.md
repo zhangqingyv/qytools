@@ -85,3 +85,24 @@ $ cl1024 -t
 * URLEncode
 * setTimeOut 延迟
 
+## publish_mdoversea
+
+### 使用
+
+海外团队 MDOversea 发版本工具
+
+```
+
+// 自动获取版本号 （当前版本号加1）
+$ publish_mdoversea
+
+
+// 手动指定版本号
+$ publish_mdoversea 9.0.6.2
+
+```
+
+### 技术点
+
+* git-promise 的使用
+* 正则表达式匹配分组使用
